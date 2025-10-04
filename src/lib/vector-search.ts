@@ -1,4 +1,4 @@
-import { getPineconeIndex, searchVectors, upsertTexts } from './pinecone';
+import { getPineconeIndex, searchVectors, upsertTexts, upsertTextsWithEmbedding } from './pinecone';
 import { prepareTextForEmbedding, generateEmbedding } from './embeddings';
 import { Email, VectorSearchResult } from '@/types';
 import { config } from './config';
@@ -18,13 +18,13 @@ export class VectorSearchService {
         date: email.date,
         summary: summary,
         body: email.body.substring(0, 1000), // Store first 1000 chars of body
+        text: preparedText, // Store the text in metadata for reference
       };
       
-      // Generate embedding for the text
+      // Generate embedding with correct dimensions (1024)
       const embedding = await generateEmbedding(preparedText);
       
-      // Upsert to Pinecone with embedding
-      await upsertTexts([{
+      await upsertTextsWithEmbedding([{
         id: email.id,
         values: embedding,
         metadata,
@@ -57,9 +57,10 @@ export class VectorSearchService {
           date: email.date,
           summary: summary,
           body: email.body.substring(0, 1000),
+          text: preparedText, // Store the text in metadata for reference
         };
         
-        // Generate embedding for the text
+        // Generate embedding with correct dimensions (1024)
         const embedding = await generateEmbedding(preparedText);
         
         texts.push({
@@ -69,8 +70,8 @@ export class VectorSearchService {
         });
       }
       
-      // Batch upsert to Pinecone (embeddings generated automatically)
-      await upsertTexts(texts);
+      // Batch upsert to Pinecone
+      await upsertTextsWithEmbedding(texts);
       console.log(`Indexed ${emails.length} emails`);
     } catch (error) {
       console.error('Error indexing emails:', error);

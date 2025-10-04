@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     console.log('Received request body:', body);
     
-    const { accessToken, refreshToken, query = '', maxResults = 50 } = body;
+    const { accessToken, refreshToken, query = '', maxResults = config.email.defaultMaxResults } = body;
 
     if (!accessToken) {
       console.log('Missing access token');
@@ -33,9 +33,13 @@ export async function POST(request: NextRequest) {
     const groqService = new GroqService(config.groq.apiKey);
     const vectorService = new VectorSearchService();
 
-    // Fetch emails from Gmail
-    console.log('Fetching emails from Gmail...');
-    const emails = await gmailService.getEmails(query, maxResults);
+    // Fetch emails from Gmail - specifically Canara Bank emails
+    console.log('Fetching latest 5 Canara Bank emails from Gmail...');
+    
+    // Use custom query if provided, otherwise get Canara Bank emails
+    const emails = query 
+      ? await gmailService.getEmails(query, maxResults)
+      : await gmailService.getCanaraEmails(maxResults);
     
     if (emails.length === 0) {
       return NextResponse.json({
@@ -44,17 +48,25 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Process emails in batches
-    const batchSize = 10;
+    // Process emails with rate limiting
     const summaries: string[] = [];
     const processedEmails: any[] = [];
+    const concurrencyLimit = config.groq.concurrencyLimit;
+    
+    console.log(`Processing ${emails.length} emails with concurrency limit of ${concurrencyLimit}...`);
 
-    for (let i = 0; i < emails.length; i += batchSize) {
-      const batch = emails.slice(i, i + batchSize);
-      const batchSummaries: string[] = [];
-
-      // Generate summaries for the batch
-      for (const email of batch) {
+    // Process emails in smaller concurrent batches
+    for (let i = 0; i < emails.length; i += concurrencyLimit) {
+      const batch = emails.slice(i, i + concurrencyLimit);
+      
+      const batchNumber = Math.floor(i / concurrencyLimit) + 1;
+      const totalBatches = Math.ceil(emails.length / concurrencyLimit);
+      
+      console.log(`Processing batch ${batchNumber}/${totalBatches} (${batch.length} emails)`);
+      console.log('Rate limit stats:', groqService.getRateLimitStats());
+      
+      // Process batch concurrently but with limited concurrency
+      const batchPromises = batch.map(async (email) => {
         try {
           const summary = await groqService.summarizeEmail(
             email.from,
@@ -63,20 +75,38 @@ export async function POST(request: NextRequest) {
             email.date,
             email.body
           );
-          batchSummaries.push(JSON.stringify(summary));
+          return {
+            email,
+            summary: JSON.stringify(summary),
+            success: true
+          };
         } catch (error) {
           console.error(`Error summarizing email ${email.id}:`, error);
-          batchSummaries.push(JSON.stringify({
-            dateTime: email.date,
-            sender: email.from,
-            subject: email.subject,
-            context: email.body.substring(0, 500),
-          }));
+          return {
+            email,
+            summary: JSON.stringify({
+              dateTime: email.date,
+              sender: email.from,
+              subject: email.subject,
+              context: email.body.substring(0, 500),
+            }),
+            success: false
+          };
         }
-      }
+      });
 
-      summaries.push(...batchSummaries);
-      processedEmails.push(...batch);
+      const batchResults = await Promise.all(batchPromises);
+      
+      // Add results to arrays
+      batchResults.forEach(result => {
+        processedEmails.push(result.email);
+        summaries.push(result.summary);
+      });
+
+      // Add a small delay between batches to be extra safe
+      if (i + concurrencyLimit < emails.length) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
     }
 
     // Index emails in vector database

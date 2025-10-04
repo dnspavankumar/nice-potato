@@ -28,19 +28,21 @@ export const initializePineconeIndex = async () => {
     );
     
     if (!indexExists) {
-      // Create index with integrated embedding model
-      await client.createIndexForModel({
+      // Create regular index with 1024 dimensions (no integrated embeddings)
+      await client.createIndex({
         name: config.pinecone.indexName,
-        cloud: 'aws',
-        region: 'us-east-1',
-        embed: {
-          model: 'llama-text-embed-v2',
-          fieldMap: { text: 'chunk_text' },
+        dimension: config.vector.embeddingDimension, // 1024
+        metric: 'cosine',
+        spec: {
+          serverless: {
+            cloud: 'aws',
+            region: 'us-east-1'
+          }
         },
         waitUntilReady: true,
       });
       
-      console.log(`Created Pinecone index with integrated embedding model: ${config.pinecone.indexName}`);
+      console.log(`Created Pinecone index: ${config.pinecone.indexName} with ${config.vector.embeddingDimension} dimensions`);
     } else {
       console.log(`Pinecone index already exists: ${config.pinecone.indexName}`);
     }
@@ -54,6 +56,23 @@ export const initializePineconeIndex = async () => {
 
 // Updated to work with integrated embedding models
 export const upsertTexts = async (texts: Array<{
+  id: string;
+  values?: number[]; // Optional when using integrated embeddings
+  metadata: Record<string, any>;
+  chunk_text?: string; // For integrated embeddings
+}>) => {
+  try {
+    const index = await getPineconeIndex();
+    await index.upsert(texts);
+    console.log(`Upserted ${texts.length} text chunks to Pinecone`);
+  } catch (error) {
+    console.error('Error upserting texts:', error);
+    throw error;
+  }
+};
+
+// For regular embeddings - upsert with vectors
+export const upsertTextsWithEmbedding = async (texts: Array<{
   id: string;
   values: number[];
   metadata: Record<string, any>;
@@ -89,6 +108,8 @@ export const searchVectors = async (
     throw error;
   }
 };
+
+
 
 export const deleteVectors = async (ids: string[]) => {
   try {

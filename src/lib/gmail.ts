@@ -158,6 +158,67 @@ export class GmailService {
     }
   }
 
+  // Method to get recent Canara Bank emails specifically
+  async getCanaraEmails(maxResults: number = 5): Promise<Email[]> {
+    try {
+      // Comprehensive query for Canara Bank emails
+      const canaraQuery = [
+        'from:canara',
+        'from:canarabank.com',
+        'from:canarabank.co.in',
+        'subject:"canara bank"',
+        'subject:"canara"',
+        'body:"canara bank"'
+      ].join(' OR ');
+      
+      console.log(`Searching for Canara Bank emails with query: ${canaraQuery}`);
+      
+      const response = await this.gmail.users.messages.list({
+        userId: 'me',
+        q: canaraQuery,
+        maxResults,
+      });
+
+      const messages = response.data.messages || [];
+      console.log(`Found ${messages.length} Canara Bank emails`);
+      
+      const emails: Email[] = [];
+
+      for (const message of messages) {
+        try {
+          const email = await this.getEmailDetails(message.id);
+          if (email && this.isCanaraRelated(email)) {
+            emails.push(email);
+          }
+        } catch (error) {
+          console.error(`Error fetching Canara email ${message.id}:`, error);
+        }
+      }
+
+      // Sort by date (most recent first)
+      emails.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      
+      return emails.slice(0, maxResults);
+    } catch (error) {
+      console.error('Error fetching Canara Bank emails:', error);
+      throw error;
+    }
+  }
+
+  // Helper method to verify if email is Canara Bank related
+  private isCanaraRelated(email: Email): boolean {
+    const searchText = `${email.from} ${email.subject} ${email.body}`.toLowerCase();
+    const canaraKeywords = [
+      'canara',
+      'canarabank',
+      'canara bank',
+      'cnrb',
+      'canbank'
+    ];
+    
+    return canaraKeywords.some(keyword => searchText.includes(keyword));
+  }
+
   // Method to test Gmail API connection (similar to official docs)
   async testConnection(): Promise<boolean> {
     try {

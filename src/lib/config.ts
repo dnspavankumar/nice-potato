@@ -11,6 +11,9 @@ export const config = {
     model: 'llama-3.3-70b-versatile',
     temperature: 0.3,
     maxTokens: 1000,
+    rateLimitDelay: 1000, // 1 second between requests
+    maxRetries: 3,
+    concurrencyLimit: 3, // Max concurrent requests
   },
   
   // Gmail Configuration
@@ -22,15 +25,16 @@ export const config = {
   
   // Vector Search Configuration
   vector: {
-    embeddingDimension: 1536,
+    embeddingDimension: 1024, // Changed to match Pinecone index dimension (llama-text-embed-v2)
     topK: 25,
     similarityThreshold: 0.7,
   },
   
   // Email Processing
   email: {
-    maxEmailsPerBatch: 50,
+    maxEmailsPerBatch: 5, // Reduced to 5 for Canara Bank focus
     supportedMimeTypes: ['text/plain', 'text/html'],
     maxBodyLength: 10000,
+    defaultMaxResults: 5, // Default to 5 recent emails
   },
 } as const;

@@ -1,12 +1,23 @@
 import { config } from './config';
 import { EmailSummary } from '@/types';
+import { RateLimiter } from './rate-limiter';
+import { CircuitBreaker } from './circuit-breaker';
 
 export class GroqService {
   private apiKey: string;
   private baseUrl: string = 'https://api.groq.com/openai/v1';
+  private requestQueue: Array<() => Promise<any>> = [];
+  private isProcessing: boolean = false;
+  private lastRequestTime: number = 0;
+  private minRequestInterval: number = config.groq.rateLimitDelay;
+  private rateLimiter: RateLimiter;
+  private circuitBreaker: CircuitBreaker;
 
   constructor(apiKey: string) {
     this.apiKey = apiKey;
+    // Groq free tier: 30 requests per minute
+    this.rateLimiter = new RateLimiter(30, 60000);
+    this.circuitBreaker = new CircuitBreaker(5, 60000); // 5 failures, 1 minute recovery
   }
 
   async summarizeEmail(
@@ -111,7 +122,63 @@ Answer in a very short, brief, and informative manner.
   }
 
   private async callGroqAPI(messages: Array<{ role: string; content: string }>): Promise<string> {
-    try {
+    return new Promise((resolve, reject) => {
+      this.requestQueue.push(async () => {
+        try {
+          await this.rateLimitDelay();
+          const result = await this.makeAPIRequest(messages);
+          resolve(result);
+        } catch (error) {
+          reject(error);
+        }
+      });
+      
+      this.processQueue();
+    });
+  }
+
+  private async rateLimitDelay(): Promise<void> {
+    // Use the rate limiter to ensure we don't exceed limits
+    await this.rateLimiter.waitForSlot();
+    
+    const now = Date.now();
+    const timeSinceLastRequest = now - this.lastRequestTime;
+    
+    if (timeSinceLastRequest < this.minRequestInterval) {
+      const delay = this.minRequestInterval - timeSinceLastRequest;
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+    
+    this.lastRequestTime = Date.now();
+  }
+
+  private async processQueue(): Promise<void> {
+    if (this.isProcessing || this.requestQueue.length === 0) {
+      return;
+    }
+
+    this.isProcessing = true;
+    
+    while (this.requestQueue.length > 0) {
+      const request = this.requestQueue.shift();
+      if (request) {
+        try {
+          await request();
+        } catch (error) {
+          console.error('Queue processing error:', error);
+        }
+      }
+    }
+    
+    this.isProcessing = false;
+  }
+
+  private async makeAPIRequest(messages: Array<{ role: string; content: string }>, retryCount: number = 0): Promise<string> {
+    const maxRetries = config.groq.maxRetries;
+    const baseDelay = 2000; // 2 seconds
+    
+    return this.circuitBreaker.execute(async () => {
+      try {
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
@@ -126,6 +193,18 @@ Answer in a very short, brief, and informative manner.
         }),
       });
 
+      if (response.status === 429) {
+        // Rate limit hit - implement exponential backoff
+        if (retryCount < maxRetries) {
+          const delay = baseDelay * Math.pow(2, retryCount);
+          console.log(`Rate limit hit, retrying in ${delay}ms (attempt ${retryCount + 1}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return this.makeAPIRequest(messages, retryCount + 1);
+        } else {
+          throw new Error(`Groq API rate limit exceeded after ${maxRetries} retries`);
+        }
+      }
+
       if (!response.ok) {
         throw new Error(`Groq API error: ${response.status} ${response.statusText}`);
       }
@@ -138,9 +217,18 @@ Answer in a very short, brief, and informative manner.
 
       return data.choices[0].message.content;
     } catch (error) {
+      if (retryCount < maxRetries && (error as Error).message.includes('fetch')) {
+        // Network error - retry with exponential backoff
+        const delay = baseDelay * Math.pow(2, retryCount);
+        console.log(`Network error, retrying in ${delay}ms (attempt ${retryCount + 1}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return this.makeAPIRequest(messages, retryCount + 1);
+      }
+      
       console.error('Groq API call failed:', error);
       throw error;
     }
+    });
   }
 
   private parseEmailSummary(summary: string): EmailSummary {
@@ -187,5 +275,12 @@ Answer in a very short, brief, and informative manner.
         context: summary.substring(0, 500),
       };
     }
+  }
+
+  getRateLimitStats() {
+    return {
+      rateLimit: this.rateLimiter.getStats(),
+      circuitBreaker: this.circuitBreaker.getState()
+    };
   }
 }
