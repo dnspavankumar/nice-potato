@@ -50,17 +50,12 @@ Email Context: ${result.metadata.summary}
       }
     });
 
-    // Generate answer using Groq
+    // Generate answer using Groq - always provide email context
     let answer: string;
     
     if (conversationHistory.length > 0) {
-      // Continue existing conversation
-      const messages = conversationHistory.map((msg: any) => ({
-        role: msg.role,
-        content: msg.content,
-      }));
-      
-      answer = await groqService.continueConversation(messages, question);
+      // Continue existing conversation but with fresh email context
+      answer = await groqService.answerQuestionWithHistory(question, contextEmails, conversationHistory);
     } else {
       // New conversation
       answer = await groqService.answerQuestion(question, contextEmails);

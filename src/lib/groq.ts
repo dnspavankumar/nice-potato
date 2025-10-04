@@ -121,6 +121,39 @@ Answer in a very short, brief, and informative manner.
     }
   }
 
+  async answerQuestionWithHistory(
+    question: string,
+    contextEmails: string[],
+    conversationHistory: Array<{ role: string; content: string }>
+  ): Promise<string> {
+    try {
+      const systemPrompt = `
+You are an AI assistant with access to a collection of emails. 
+Below, you'll find the most relevant emails retrieved for the user's question. 
+Your job is to answer the question based on the provided emails and the conversation history.
+Answer in a very short, brief, and informative manner.
+`;
+
+      const context = contextEmails.map((email, index) => 
+        `Email(${index + 1}):\n\n${email}\n\n`
+      ).join('');
+
+      // Build the conversation with context
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `Here are the relevant emails:\n\n${context}` },
+        ...conversationHistory,
+        { role: 'user', content: question }
+      ];
+
+      const response = await this.callGroqAPI(messages);
+      return response;
+    } catch (error) {
+      console.error('Error answering question with history:', error);
+      return 'I apologize, but I encountered an error while processing your question. Please try again.';
+    }
+  }
+
   private async callGroqAPI(messages: Array<{ role: string; content: string }>): Promise<string> {
     return new Promise((resolve, reject) => {
       this.requestQueue.push(async () => {
@@ -233,38 +266,86 @@ Answer in a very short, brief, and informative manner.
 
   private parseEmailSummary(summary: string): EmailSummary {
     try {
-      // Parse the structured summary format
-      const lines = summary.split('\n');
-      let dateTime = '';
-      let sender = '';
-      let cc = '';
-      let subject = '';
-      let context = '';
+      // Check if this is a structured Groq response or fallback content
+      if (summary.includes('<Email Start>') && summary.includes('Email Context:')) {
+        // Parse the structured summary format from Groq
+        const lines = summary.split('\n');
+        let dateTime = '';
+        let sender = '';
+        let cc = '';
+        let subject = '';
+        let context = '';
 
-      let currentSection = '';
-      for (const line of lines) {
-        if (line.includes('Date and Time:')) {
-          dateTime = line.replace('Date and Time:', '').trim();
-        } else if (line.includes('Sender:')) {
-          sender = line.replace('Sender:', '').trim();
-        } else if (line.includes('CC:')) {
-          cc = line.replace('CC:', '').trim();
-        } else if (line.includes('Subject:')) {
-          subject = line.replace('Subject:', '').trim();
-        } else if (line.includes('Email Context:')) {
-          currentSection = 'context';
-        } else if (currentSection === 'context' && line.trim()) {
-          context += line + ' ';
+        let currentSection = '';
+        let collectingContext = false;
+        
+        for (const line of lines) {
+          if (line.includes('Date and Time:')) {
+            dateTime = line.replace('Date and Time:', '').trim();
+          } else if (line.includes('Sender:')) {
+            sender = line.replace('Sender:', '').trim();
+          } else if (line.includes('CC:')) {
+            cc = line.replace('CC:', '').trim();
+          } else if (line.includes('Subject:')) {
+            subject = line.replace('Subject:', '').trim();
+          } else if (line.includes('Email Context:')) {
+            collectingContext = true;
+            // Get content after "Email Context:" on the same line
+            const contextStart = line.replace('Email Context:', '').trim();
+            if (contextStart) {
+              context += contextStart + ' ';
+            }
+          } else if (collectingContext && line.trim() && !line.includes('<Email End>')) {
+            context += line.trim() + ' ';
+          } else if (line.includes('<Email End>')) {
+            collectingContext = false;
+          }
         }
-      }
 
-      return {
-        dateTime: dateTime || 'Unknown',
-        sender: sender || 'Unknown',
-        cc: cc || undefined,
-        subject: subject || 'No Subject',
-        context: context.trim() || 'No context available',
-      };
+        return {
+          dateTime: dateTime || 'Unknown',
+          sender: sender || 'Unknown',
+          cc: cc || undefined,
+          subject: subject || 'No Subject',
+          context: context.trim() || 'No context available',
+        };
+      } else {
+        // This is fallback content (raw email body), extract key information
+        const cleanSummary = summary.substring(0, 1000); // Limit length
+        
+        // Try to extract transaction amount
+        const amountMatch = cleanSummary.match(/Rs\.?\s*(\d+(?:,\d+)*(?:\.\d{2})?)/i);
+        const amount = amountMatch ? `Rs. ${amountMatch[1]}` : '';
+        
+        // Try to extract transaction type
+        const transactionTypes = ['debited', 'credited', 'UPI', 'IMPS', 'NEFT', 'ATM'];
+        const foundTypes = transactionTypes.filter(type => 
+          cleanSummary.toLowerCase().includes(type.toLowerCase())
+        );
+        
+        // Try to extract balance
+        const balanceMatch = cleanSummary.match(/(?:Available\s+)?Balance:?\s*Rs\.?\s*(\d+(?:,\d+)*(?:\.\d{2})?)/i);
+        const balance = balanceMatch ? `Balance: Rs. ${balanceMatch[1]}` : '';
+        
+        // Create a meaningful context
+        let context = '';
+        if (amount) context += `Amount: ${amount}. `;
+        if (foundTypes.length > 0) context += `Transaction type: ${foundTypes.join(', ')}. `;
+        if (balance) context += balance + '. ';
+        
+        // If no specific details found, use first part of summary
+        if (!context.trim()) {
+          context = cleanSummary.substring(0, 200) + '...';
+        }
+        
+        return {
+          dateTime: 'Unknown',
+          sender: 'Unknown',
+          cc: undefined,
+          subject: 'No Subject',
+          context: context.trim(),
+        };
+      }
     } catch (error) {
       console.error('Error parsing email summary:', error);
       // Return a basic summary if parsing fails
