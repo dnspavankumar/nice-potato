@@ -366,7 +366,8 @@ export default function Home() {
                     onKeyPress={handleChatKeyPress}
                     placeholder="Ask a question about your emails..."
                     disabled={isChatLoading}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 text-gray-900 bg-white placeholder-gray-500"
+                    style={{ color: '#111827', backgroundColor: '#ffffff' }}
                   />
                   <button 
                     onClick={handleChatSubmit}
@@ -409,7 +410,8 @@ export default function Home() {
                     onKeyPress={handleSearchKeyPress}
                     placeholder="Search emails..."
                     disabled={isSearchLoading}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 text-gray-900 bg-white placeholder-gray-500"
+                    style={{ color: '#111827', backgroundColor: '#ffffff' }}
                   />
                   <button 
                     onClick={handleSearch}

@@ -24,3 +24,19 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Ensure input fields always have proper contrast */
+input[type="text"], input[type="email"], input[type="password"], textarea {
+  color: #111827 !important;
+  background-color: #ffffff !important;
+}
+
+input[type="text"]:disabled, input[type="email"]:disabled, input[type="password"]:disabled, textarea:disabled {
+  color: #6b7280 !important;
+  background-color: #f9fafb !important;
+}
+
+/* Ensure placeholder text is visible */
+input::placeholder, textarea::placeholder {
+  color: #6b7280 !important;
+}
