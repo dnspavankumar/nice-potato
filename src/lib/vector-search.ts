@@ -1,4 +1,4 @@
-import { getPineconeIndex, searchVectors, upsertTexts, upsertTextsWithEmbedding } from './pinecone';
+import { getPineconeIndex, searchVectors, upsertTextsWithEmbedding } from './pinecone';
 import { prepareTextForEmbedding, generateEmbedding } from './embeddings';
 import { Email, VectorSearchResult } from '@/types';
 import { config } from './config';
@@ -82,7 +82,7 @@ export class VectorSearchService {
   async searchEmails(
     query: string,
     topK: number = config.vector.topK,
-    filter?: Record<string, any>
+    filter?: Record<string, string | number | boolean | { $gte?: string; $lte?: string }>
   ): Promise<VectorSearchResult[]> {
     try {
       // Generate embedding for the query
@@ -96,11 +96,11 @@ export class VectorSearchService {
         id: result.id || `result-${index}`,
         score: result.score || 0,
         metadata: {
-          emailId: result.metadata?.emailId || '',
-          summary: result.metadata?.summary || '',
-          date: result.metadata?.date || '',
-          sender: result.metadata?.from || '',
-          subject: result.metadata?.subject || '',
+          emailId: String(result.metadata?.emailId || ''),
+          summary: String(result.metadata?.summary || ''),
+          date: String(result.metadata?.date || ''),
+          sender: String(result.metadata?.from || ''),
+          subject: String(result.metadata?.subject || ''),
         },
       }));
     } catch (error) {
@@ -140,14 +140,18 @@ export class VectorSearchService {
       const index = await getPineconeIndex();
       const fetchResponse = await index.fetch([emailId]);
       
-      if (!fetchResponse.vectors || !fetchResponse.vectors[emailId]) {
+      if (!fetchResponse.records || !fetchResponse.records[emailId]) {
         throw new Error(`Email ${emailId} not found in vector database`);
       }
       
-      const emailVector = fetchResponse.vectors[emailId].values;
+      const emailVector = fetchResponse.records[emailId].values;
+      
+      if (!emailVector) {
+        throw new Error(`No vector data found for email ${emailId}`);
+      }
       
       // Search for similar emails
-      const results = await searchVectors(emailVector, topK + 1); // +1 to exclude the original email
+      const results = await searchVectors(emailVector as number[], topK + 1); // +1 to exclude the original email
       
       // Filter out the original email and transform results
       return results
@@ -156,11 +160,11 @@ export class VectorSearchService {
           id: result.id || `similar-${index}`,
           score: result.score || 0,
           metadata: {
-            emailId: result.metadata?.emailId || '',
-            summary: result.metadata?.summary || '',
-            date: result.metadata?.date || '',
-            sender: result.metadata?.from || '',
-            subject: result.metadata?.subject || '',
+            emailId: String(result.metadata?.emailId || ''),
+            summary: String(result.metadata?.summary || ''),
+            date: String(result.metadata?.date || ''),
+            sender: String(result.metadata?.from || ''),
+            subject: String(result.metadata?.subject || ''),
           },
         }));
     } catch (error) {

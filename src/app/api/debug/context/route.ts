@@ -21,7 +21,7 @@ CC: ${summary.cc || 'None'}
 Subject: ${summary.subject || result.metadata.subject}
 Email Context: ${summary.context || 'No context available'}
 <Email End>`;
-      } catch (error) {
+      } catch {
         return `<Email Start>
 Date and Time: ${result.metadata.date}
 Sender: ${result.metadata.sender}

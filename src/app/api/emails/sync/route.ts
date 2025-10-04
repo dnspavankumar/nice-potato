@@ -50,7 +50,14 @@ export async function POST(request: NextRequest) {
 
     // Process emails with rate limiting
     const summaries: string[] = [];
-    const processedEmails: any[] = [];
+    const processedEmails: Array<{
+      id: string;
+      subject: string;
+      from: string;
+      date: string;
+      body: string;
+      cc?: string;
+    }> = [];
     const concurrencyLimit = config.groq.concurrencyLimit;
     
     console.log(`Processing ${emails.length} emails with concurrency limit of ${concurrencyLimit}...`);

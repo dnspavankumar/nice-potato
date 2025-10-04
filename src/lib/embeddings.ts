@@ -11,7 +11,7 @@ export const generateEmbedding = async (text: string): Promise<number[]> => {
     const embedding = new Array(config.vector.embeddingDimension).fill(0);
     
     // Use word hashing and frequency to create meaningful embeddings
-    words.forEach((word, index) => {
+    words.forEach((word) => {
       const hash = simpleHash(word);
       const freq = words.filter(w => w === word).length / words.length;
       

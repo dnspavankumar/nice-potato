@@ -30,21 +30,21 @@ export async function POST(request: NextRequest) {
     // Step 4: Get some sample vectors from index
     console.log('Fetching sample vectors...');
     const listResponse = await index.listPaginated({ limit: 5 });
-    const vectorIds = listResponse.vectors?.map(v => v.id) || [];
+    const vectorIds = listResponse.vectors?.map(v => v.id).filter((id): id is string => id !== undefined) || [];
     
-    let sampleVectors = [];
+    let sampleVectors: Array<{ id: string; metadata: Record<string, unknown> }> = [];
     if (vectorIds.length > 0) {
       const fetchResponse = await index.fetch(vectorIds);
-      sampleVectors = Object.entries(fetchResponse.vectors || {}).map(([id, vector]) => ({
+      sampleVectors = Object.entries(fetchResponse.records || {}).map(([id, vector]) => ({
         id,
-        metadata: vector.metadata
+        metadata: vector.metadata || {}
       }));
     }
     
     return NextResponse.json({
       query,
       indexStats: {
-        totalVectorCount: stats.totalVectorCount,
+        totalRecordCount: stats.totalRecordCount,
         dimension: stats.dimension,
       },
       queryEmbedding: {

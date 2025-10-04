@@ -33,12 +33,11 @@ export async function GET() {
       dimension: ourIndex.dimension,
       expectedDimension: config.vector.embeddingDimension,
       dimensionMatch: ourIndex.dimension === config.vector.embeddingDimension,
-      vectorCount: stats.totalVectorCount || 0,
+      vectorCount: stats.totalRecordCount || 0,
       indexInfo: {
         host: ourIndex.host,
         metric: ourIndex.metric,
-        cloud: ourIndex.cloud,
-        region: ourIndex.region,
+        spec: ourIndex.spec,
       },
       embeddingModel: 'custom (1024 dimensions)'
     });

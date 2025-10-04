@@ -1,11 +1,11 @@
 import { google } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
 import { config } from './config';
-import { Email, EmailSummary } from '@/types';
+import { Email } from '@/types';
 
 export class GmailService {
   private oauth2Client: OAuth2Client;
-  private gmail: any;
+  private gmail: ReturnType<typeof google.gmail>;
 
   constructor(accessToken: string, refreshToken?: string) {
     this.oauth2Client = new OAuth2Client(
@@ -14,7 +14,7 @@ export class GmailService {
       'http://localhost:3000/api/auth/callback/google'
     );
 
-    const credentials: any = {
+    const credentials: { access_token: string; refresh_token?: string } = {
       access_token: accessToken,
     };
 
@@ -40,9 +40,11 @@ export class GmailService {
 
       for (const message of messages) {
         try {
-          const email = await this.getEmailDetails(message.id);
-          if (email) {
-            emails.push(email);
+          if (message.id) {
+            const email = await this.getEmailDetails(message.id);
+            if (email) {
+              emails.push(email);
+            }
           }
         } catch (error) {
           console.error(`Error fetching email ${message.id}:`, error);
@@ -68,13 +70,13 @@ export class GmailService {
       const headers = message.payload?.headers || [];
       
       const getHeader = (name: string) => 
-        headers.find((h: any) => h.name === name)?.value || '';
+        headers.find((h) => h.name === name)?.value || '';
 
       const from = getHeader('From');
       const cc = getHeader('Cc');
       const subject = getHeader('Subject');
       const date = getHeader('Date');
-      const body = this.extractBody(message.payload);
+      const body = message.payload ? this.extractBody(message.payload as Record<string, unknown>) : '';
 
       return {
         id: messageId,
@@ -90,26 +92,29 @@ export class GmailService {
     }
   }
 
-  private extractBody(payload: any): string {
+  private extractBody(payload: Record<string, unknown>): string {
     if (!payload) return '';
 
     // Handle multipart messages
-    if (payload.parts) {
+    if (Array.isArray(payload.parts)) {
       for (const part of payload.parts) {
-        if (part.mimeType === 'text/plain' && part.body?.data) {
-          return Buffer.from(part.body.data, 'base64').toString('utf-8');
+        const partObj = part as Record<string, unknown>;
+        const body = partObj.body as Record<string, unknown>;
+        if (partObj.mimeType === 'text/plain' && body?.data && typeof body.data === 'string') {
+          return Buffer.from(body.data, 'base64').toString('utf-8');
         }
-        if (part.mimeType === 'text/html' && part.body?.data) {
-          const html = Buffer.from(part.body.data, 'base64').toString('utf-8');
+        if (partObj.mimeType === 'text/html' && body?.data && typeof body.data === 'string') {
+          const html = Buffer.from(body.data, 'base64').toString('utf-8');
           return this.cleanHtml(html);
         }
       }
     }
 
     // Handle single part messages
-    if (payload.body?.data) {
-      const body = Buffer.from(payload.body.data, 'base64').toString('utf-8');
-      return payload.mimeType === 'text/html' ? this.cleanHtml(body) : body;
+    const body = payload.body as Record<string, unknown>;
+    if (body?.data && typeof body.data === 'string') {
+      const bodyText = Buffer.from(body.data, 'base64').toString('utf-8');
+      return payload.mimeType === 'text/html' ? this.cleanHtml(bodyText) : bodyText;
     }
 
     return '';
@@ -151,7 +156,7 @@ export class GmailService {
       });
       
       const labels = response.data.labels || [];
-      return labels.map((label: any) => label.name);
+      return labels.map((label) => label.name || '').filter(name => name !== '');
     } catch (error) {
       console.error('Error fetching labels:', error);
       throw error;
@@ -186,9 +191,11 @@ export class GmailService {
 
       for (const message of messages) {
         try {
-          const email = await this.getEmailDetails(message.id);
-          if (email && this.isCanaraRelated(email)) {
-            emails.push(email);
+          if (message.id) {
+            const email = await this.getEmailDetails(message.id);
+            if (email && this.isCanaraRelated(email)) {
+              emails.push(email);
+            }
           }
         } catch (error) {
           console.error(`Error fetching Canara email ${message.id}:`, error);

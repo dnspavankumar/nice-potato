@@ -2,6 +2,13 @@ import { NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import { config } from './config';
 
+declare module 'next-auth' {
+  interface Session {
+    accessToken?: string;
+    refreshToken?: string;
+  }
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
     GoogleProvider({
@@ -31,8 +38,8 @@ export const authOptions: NextAuthOptions = {
     },
     async session({ session, token }) {
       // Send properties to the client
-      session.accessToken = token.accessToken;
-      session.refreshToken = token.refreshToken;
+      session.accessToken = token.accessToken as string;
+      session.refreshToken = token.refreshToken as string;
       console.log('Session callback - sending tokens:', {
         accessToken: !!session.accessToken,
         refreshToken: !!session.refreshToken

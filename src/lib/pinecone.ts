@@ -57,9 +57,9 @@ export const initializePineconeIndex = async () => {
 // Updated to work with integrated embedding models
 export const upsertTexts = async (texts: Array<{
   id: string;
-  values?: number[]; // Optional when using integrated embeddings
-  metadata: Record<string, any>;
-  chunk_text?: string; // For integrated embeddings
+  values?: number[];
+  metadata: Record<string, string | number | boolean>;
+  chunk_text?: string;
 }>) => {
   try {
     const index = await getPineconeIndex();
@@ -75,7 +75,7 @@ export const upsertTexts = async (texts: Array<{
 export const upsertTextsWithEmbedding = async (texts: Array<{
   id: string;
   values: number[];
-  metadata: Record<string, any>;
+  metadata: Record<string, string | number | boolean>;
 }>) => {
   try {
     const index = await getPineconeIndex();
@@ -91,7 +91,7 @@ export const upsertTextsWithEmbedding = async (texts: Array<{
 export const searchVectors = async (
   queryVector: number[],
   topK: number = config.vector.topK,
-  filter?: Record<string, any>
+  filter?: Record<string, string | number | boolean | { $gte?: string; $lte?: string }>
 ) => {
   try {
     const index = await getPineconeIndex();

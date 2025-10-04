@@ -2,7 +2,17 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useSession, signIn, signOut } from 'next-auth/react';
-import { Mail, Search, MessageSquare, Settings, RefreshCw, User, LogOut } from 'lucide-react';
+import { Mail, Search, MessageSquare, RefreshCw, User, LogOut } from 'lucide-react';
+
+interface ExtendedSession {
+  accessToken?: string;
+  refreshToken?: string;
+  user?: {
+    email?: string;
+    name?: string;
+    image?: string;
+  };
+}
 
 export default function Home() {
   const { data: session, status } = useSession();
@@ -18,25 +28,47 @@ export default function Home() {
   
   // Search state
   const [searchInput, setSearchInput] = useState('');
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchResults, setSearchResults] = useState<Array<{
+    id: string;
+    subject: string;
+    sender: string;
+    date: string;
+    summary: string;
+    score: number;
+  }>>([]);
   const [isSearchLoading, setIsSearchLoading] = useState(false);
   
   // Emails state
-  const [syncedEmails, setSyncedEmails] = useState<any[]>([]);
+  const [syncedEmails, setSyncedEmails] = useState<Array<{
+    id: string;
+    subject: string;
+    from: string;
+    date: string;
+    summary: string;
+  }>>([]);
   const [expandedEmails, setExpandedEmails] = useState<Set<string>>(new Set());
   
   // Refs for auto-scrolling
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const handleSyncEmails = async () => {
-    if (!session?.accessToken) {
+    if (!session) {
       alert('Please sign in first');
       return;
     }
 
+    const extendedSession = session as ExtendedSession;
+    const accessToken = extendedSession.accessToken;
+    const refreshToken = extendedSession.refreshToken;
+
+    if (!accessToken) {
+      alert('No access token available. Please sign in again.');
+      return;
+    }
+
     console.log('Session data:', session);
-    console.log('Access token:', session.accessToken);
-    console.log('Refresh token:', session.refreshToken);
+    console.log('Access token:', accessToken);
+    console.log('Refresh token:', refreshToken);
 
     setIsLoading(true);
     setSyncStatus('Syncing emails...');
@@ -48,8 +80,8 @@ export default function Home() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          accessToken: session.accessToken,
-          refreshToken: session.refreshToken,
+          accessToken,
+          refreshToken,
         }),
       });
 
@@ -63,7 +95,7 @@ export default function Home() {
         setSyncStatus(`Error: ${data.error}`);
       }
     } catch (error) {
-      setSyncStatus(`Error: ${error}`);
+      setSyncStatus(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsLoading(false);
     }
@@ -153,7 +185,7 @@ export default function Home() {
       }
     } catch (error) {
       setSearchResults([]);
-      alert(`Search error: ${error}`);
+      alert(`Search error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsSearchLoading(false);
     }
@@ -192,7 +224,7 @@ export default function Home() {
       } else {
         return date.toLocaleDateString();
       }
-    } catch (error) {
+    } catch {
       return dateString;
     }
   };
@@ -321,7 +353,7 @@ export default function Home() {
                         Ask questions about your emails. The AI will search through your email content and provide relevant answers.
                       </p>
                       <p className="text-xs text-gray-500">
-                        Make sure to sync your emails first using the "Sync Emails" button above.
+                        Make sure to sync your emails first using the &quot;Sync Emails&quot; button above.
                       </p>
                     </div>
                   ) : (
@@ -498,7 +530,7 @@ export default function Home() {
                     No emails synced yet.
                   </p>
                   <p className="text-xs text-gray-500">
-                    Click "Sync Emails" above to fetch your latest Canara Bank emails.
+                    Click &quot;Sync Emails&quot; above to fetch your latest Canara Bank emails.
                   </p>
                 </div>
               ) : (
@@ -592,7 +624,7 @@ export default function Home() {
                                             )}
                                           </div>
                                         );
-                                      } catch (error) {
+                                      } catch {
                                         return <p>{email.summary.toString().substring(0, 500)}...</p>;
                                       }
                                     })()}

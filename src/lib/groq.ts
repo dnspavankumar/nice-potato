@@ -6,7 +6,7 @@ import { CircuitBreaker } from './circuit-breaker';
 export class GroqService {
   private apiKey: string;
   private baseUrl: string = 'https://api.groq.com/openai/v1';
-  private requestQueue: Array<() => Promise<any>> = [];
+  private requestQueue: Array<() => Promise<void>> = [];
   private isProcessing: boolean = false;
   private lastRequestTime: number = 0;
   private minRequestInterval: number = config.groq.rateLimitDelay;
@@ -276,7 +276,6 @@ Answer in a very short, brief, and informative manner.
         let subject = '';
         let context = '';
 
-        let currentSection = '';
         let collectingContext = false;
         
         for (const line of lines) {

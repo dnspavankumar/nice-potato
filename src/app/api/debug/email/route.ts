@@ -10,14 +10,14 @@ export async function POST(request: NextRequest) {
     const index = await getPineconeIndex();
     const fetchResponse = await index.fetch([emailId]);
     
-    if (!fetchResponse.vectors || !fetchResponse.vectors[emailId]) {
+    if (!fetchResponse.records || !fetchResponse.records[emailId]) {
       return NextResponse.json({
         error: 'Email not found',
         emailId
       }, { status: 404 });
     }
     
-    const vector = fetchResponse.vectors[emailId];
+    const vector = fetchResponse.records[emailId];
     
     return NextResponse.json({
       emailId,

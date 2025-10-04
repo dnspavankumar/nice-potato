@@ -41,7 +41,7 @@ async function testIndexing() {
     console.log('3. Checking Pinecone index...');
     const index = await getPineconeIndex();
     const stats = await index.describeIndexStats();
-    console.log(`Index stats: ${stats.totalVectorCount} vectors`);
+    console.log(`Index stats: ${stats.totalRecordCount} vectors`);
     
     console.log('4. Testing search...');
     const searchResults = await vectorService.searchEmails('UPI transaction', 5);
