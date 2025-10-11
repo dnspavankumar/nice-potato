@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     console.log('Received request body:', body);
     
-    const { accessToken, refreshToken, query = '', maxResults = config.email.defaultMaxResults } = body;
+    const { accessToken, refreshToken, query = '', maxResults = config.email.defaultMaxResults, senderEmail } = body;
 
     if (!accessToken) {
       console.log('Missing access token');
@@ -33,13 +33,18 @@ export async function POST(request: NextRequest) {
     const groqService = new GroqService(config.groq.apiKey);
     const vectorService = new VectorSearchService();
 
-    // Fetch emails from Gmail - specifically Canara Bank emails
-    console.log('Fetching latest 5 Canara Bank emails from Gmail...');
-    
-    // Use custom query if provided, otherwise get Canara Bank emails
-    const emails = query 
-      ? await gmailService.getEmails(query, maxResults)
-      : await gmailService.getCanaraEmails(maxResults);
+    // Fetch emails from Gmail
+    let emails;
+    if (query) {
+      console.log(`Fetching emails with custom query: ${query}`);
+      emails = await gmailService.getEmails(query, maxResults);
+    } else if (senderEmail) {
+      console.log(`Fetching emails from sender: ${senderEmail}`);
+      emails = await gmailService.getEmailsFromSender(senderEmail, maxResults);
+    } else {
+      console.log('Fetching latest 5 Canara Bank emails from Gmail...');
+      emails = await gmailService.getCanaraEmails(maxResults);
+    }
     
     if (emails.length === 0) {
       return NextResponse.json({

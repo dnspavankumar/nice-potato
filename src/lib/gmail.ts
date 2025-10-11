@@ -140,12 +140,13 @@ export class GmailService {
     return this.getEmails(query);
   }
 
-  async getEmailsFromSender(sender: string, days: number = 30): Promise<Email[]> {
+  async getEmailsFromSender(sender: string, maxResults: number = 5, days: number = 30): Promise<Email[]> {
     const date = new Date();
     date.setDate(date.getDate() - days);
     const query = `from:${sender} after:${date.toISOString().split('T')[0]}`;
     
-    return this.getEmails(query);
+    console.log(`Searching for emails from ${sender} with query: ${query}`);
+    return this.getEmails(query, maxResults);
   }
 
   // Method similar to official docs - list Gmail labels

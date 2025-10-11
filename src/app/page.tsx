@@ -19,6 +19,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState('chat');
   const [isLoading, setIsLoading] = useState(false);
   const [syncStatus, setSyncStatus] = useState('');
+  const [senderEmail, setSenderEmail] = useState('');
   
   // Chat state
   const [chatInput, setChatInput] = useState('');
@@ -82,6 +83,7 @@ export default function Home() {
         body: JSON.stringify({
           accessToken,
           refreshToken,
+          senderEmail: senderEmail.trim() || undefined,
         }),
       });
 
@@ -280,6 +282,14 @@ export default function Home() {
                 <User className="h-4 w-4 text-gray-600" />
                 <span className="text-sm text-gray-600">{session.user?.email}</span>
               </div>
+              <input
+                type="text"
+                value={senderEmail}
+                onChange={(e) => setSenderEmail(e.target.value)}
+                placeholder="Sender email (optional)"
+                className="px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white placeholder-gray-500"
+                style={{ width: '200px' }}
+              />
               <button 
                 onClick={handleSyncEmails}
                 disabled={isLoading}
@@ -530,7 +540,7 @@ export default function Home() {
                     No emails synced yet.
                   </p>
                   <p className="text-xs text-gray-500">
-                    Click &quot;Sync Emails&quot; above to fetch your latest Canara Bank emails.
+                    Click &quot;Sync Emails&quot; above to fetch your latest emails. Enter a sender email to filter by specific sender.
                   </p>
                 </div>
               ) : (
